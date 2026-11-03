@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<title>Gateway Clock: Walk Around</title>
+<meta name="description" content="Walk around and inside the Gateway Clock, Shreyas Foundation Civic Learning Commons: photoreal 360 views at golden hour.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">
+<style>
+/* full-bleed stage (360 sphere or walkable model), title chip top-left, controls top-right, view gallery along the bottom,
+   touch joystick bottom-left in walk mode. One dark look on purpose: a viewer is a dark room. */
+:root {
+  --night: #14161a; --paper: #f3eee7; --maroon: #630105; --red: #b31b17; --slate: #3f4e61; --mute: #a8a39b;
+  --f-display: "Jost", "Century Gothic", "Futura", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body { background: var(--night); color: var(--paper); font-family: var(--f-display); overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+#stage { position: fixed; inset: 0; cursor: grab; touch-action: none; }
+#stage:active { cursor: grabbing; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+.chip { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); left: max(16px, env(safe-area-inset-left, 0px));
+  display: grid; gap: 2px; padding: 10px 14px; background: color-mix(in srgb, var(--night) 74%, transparent); border-left: 3px solid var(--red); max-width: 58vw; }
+.chip small { font-size: 10px; letter-spacing: 0.22em; color: var(--mute); text-transform: uppercase; }
+.chip b { font-weight: 600; letter-spacing: 0.14em; font-size: 13px; text-transform: uppercase; }
+.chip span { font-size: 13px; color: var(--mute); }
+.ctl { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 40vw; }
+.ctl button { font: 500 13px var(--f-display); letter-spacing: 0.06em; color: var(--paper); cursor: pointer; min-height: 36px;
+  background: color-mix(in srgb, var(--slate) 60%, transparent); border: 1px solid color-mix(in srgb, var(--paper) 25%, transparent); padding: 8px 12px; }
+.ctl button[aria-pressed="true"] { background: var(--maroon); border-color: var(--red); }
+button:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+.hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 128px); font-size: 12px; color: var(--paper);
+  background: color-mix(in srgb, var(--night) 70%, transparent); padding: 6px 12px; white-space: nowrap; transition: opacity 0.6s; pointer-events: none; }
+.rail { position: fixed; left: 0; right: 0; bottom: 0; padding-block: 10px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; background: linear-gradient(to top, color-mix(in srgb, var(--night) 92%, transparent), transparent); }
+.rail::-webkit-scrollbar { display: none; }
+.rail button { flex: 0 0 auto; width: 132px; padding: 0; border: 2px solid transparent; background: var(--night); color: var(--paper); cursor: pointer; text-align: left; font: 500 11px var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; }
+.rail button img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #222; }
+.rail button span { display: block; padding: 4px 6px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail button[aria-pressed="true"] { border-color: var(--red); }
+.rail button[aria-pressed="true"] span { background: var(--maroon); }
+#load { position: fixed; inset: 0; display: grid; place-items: center; font-size: 13px; letter-spacing: 0.12em; color: var(--mute); pointer-events: none; text-align: center; padding: 16px; }
+#hots { position: fixed; inset: 0; pointer-events: none; }
+.hot { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; display: grid; justify-items: center; gap: 4px;
+  background: none; border: 0; color: var(--paper); font: 500 12px var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.hot i { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--maroon) 82%, transparent);
+  border: 2px solid var(--paper); box-shadow: 0 2px 10px rgb(0 0 0 / 0.45); font-style: normal; font-size: 18px; }
+.hot span { padding: 2px 6px; background: color-mix(in srgb, var(--night) 70%, transparent); white-space: nowrap; }
+#joy { position: fixed; left: max(24px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); width: 128px; height: 128px;
+  border-radius: 50%; border: 2px solid color-mix(in srgb, var(--paper) 40%, transparent); background: color-mix(in srgb, var(--night) 35%, transparent); touch-action: none; }
+#joy b { position: absolute; left: 44px; top: 44px; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--paper) 70%, transparent); }
+#vr { position: fixed; inset: 0; display: none; background: #000; }
+#vr.on { display: block; }
+#vr canvas { display: block; width: 100%; height: 100%; }
+#vr button { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 2; font: 500 13px var(--f-display); color: var(--paper); background: var(--maroon); border: 0; padding: 8px 12px; }
+[hidden] { display: none !important; }
+@media (max-width: 560px) { .chip { max-width: 52vw; } .ctl { max-width: 46vw; } .ctl button { padding: 6px 9px; font-size: 12px; } .rail button { width: 112px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="Look around: drag, or use the arrow keys"></div>
+<div id="hots"></div>
+<div class="chip"><small>Gateway Clock</small><b id="place">The plaza</b><span id="sub">16:30, 22 October</span></div>
+<div class="ctl" role="group" aria-label="View">
+  <button id="m-tour" aria-pressed="true">360 views</button><button id="m-walk" aria-pressed="false">Free walk</button>
+  <button id="b-gyro" aria-pressed="false" hidden>Move phone</button><button id="b-vr" hidden>VR headset</button><button id="b-fs">Full screen</button>
+</div>
+<div class="hint" id="hint">Drag to look around. Tap an arrow or a view below to move.</div>
+<div id="load">LOADING</div>
+<div id="joy" hidden><b></b></div>
+<nav class="rail" id="rail" aria-label="Views"></nav>
+<div id="vr"><button id="vr-x">Exit VR</button></div>
+<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM"];</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script src="lib/DRACOLoader.js"></script>
+<script src="lib/bvh.js"></script>
+<script>
+// ---------------------------------------------------------------- places (Rhino model mm; yaw = D5 camera heading of the panorama)
+// D5 heading of a direction = atan2(dRhinoX, dRhinoY); in a panorama, +heading is to the right of the image centre.
+const P = [
+  { id: "T01_ROAD", name: "The road", time: "16:40", x: 36000, y: 10000, z: 14264, yaw: 0, links: ["F03_PLAZA"] },
+  { id: "F03_PLAZA", name: "The plaza", time: "16:30", x: 8500, y: -10500, z: 13815, yaw: -170.8, links: ["T01_ROAD", "T03_PORCH"] },
+  { id: "T03_PORCH", name: "Entry porch", time: "16:40", x: 9000, y: -28500, z: 14135, yaw: 0, links: ["F03_PLAZA", "T04_FORUM", "T09_COURT"] },
+  { id: "T04_FORUM", name: "Forum", time: "16:40", x: -12000, y: -37500, z: 14000, yaw: 0, links: ["T03_PORCH", "T05_FF_CHIMNEY", "T09_COURT"] },
+  { id: "T05_FF_CHIMNEY", name: "By the thermal chimney", time: "16:40", x: 10000, y: -34000, z: 18600, yaw: 0, links: ["T04_FORUM", "T06_LIBRARY", "T10_BRIDGE"] },
+  { id: "T06_LIBRARY", name: "Library", time: "16:40", x: 33220, y: -37900, z: 18600, yaw: 0, links: ["T05_FF_CHIMNEY", "T07_STUDIO", "T08_WALKWAY"] },
+  { id: "T07_STUDIO", name: "Studio, second floor", time: "16:40", x: 36000, y: -31000, z: 23000, yaw: 0, links: ["T06_LIBRARY"] },
+  { id: "T08_WALKWAY", name: "K1 walkway", time: "16:40", x: 30000, y: -29100, z: 18620, yaw: 0, links: ["T06_LIBRARY"] },
+  { id: "T09_COURT", name: "The court", time: "16:40", x: 6000, y: -52000, z: 14050, yaw: 0, links: ["T03_PORCH", "T04_FORUM", "T10_BRIDGE", "T11_MAKER", "T12_CAMPUS"] },
+  { id: "T10_BRIDGE", name: "Court bridge room", time: "16:40", x: 6600, y: -57800, z: 18600, yaw: 0, links: ["T09_COURT", "T05_FF_CHIMNEY"] },
+  { id: "T11_MAKER", name: "Maker hall", time: "16:40", x: -16000, y: -66500, z: 14150, yaw: 0, links: ["T09_COURT", "T12_CAMPUS"] },
+  { id: "T12_CAMPUS", name: "Campus side", time: "16:40", x: 6000, y: -80000, z: 13670, yaw: 0, links: ["T09_COURT", "T11_MAKER", "F14_PITCH"] },
+  { id: "F14_PITCH", name: "From the pitch", time: "16:40", x: -36000, y: -119300, z: 17700, yaw: 33.6, links: ["T12_CAMPUS"] },
+];
+const AVAIL = window.__PANOS__ || [];
+const PLACES = P.filter((p) => AVAIL.includes(p.id));
+// links skip places whose panorama is not published yet: follow the chain to the next published one
+const byAll = Object.fromEntries(P.map((p) => [p.id, p]));
+const byId = Object.fromEntries(PLACES.map((p) => [p.id, p]));
+function liveLinks(p) {
+  const out = new Set(), seen = new Set([p.id]), todo = [...p.links];
+  while (todo.length) { const id = todo.shift(); if (seen.has(id)) continue; seen.add(id);
+    if (byId[id]) out.add(id); else if (byAll[id]) todo.push(...byAll[id].links); }
+  return [...out];
+}
+const OX = 7000, OY = -52000, OZ = 12600;
+const toWalk = (p) => new THREE.Vector3((p.x - OX) / 1000, (p.z - OZ) / 1000, -(p.y - OY) / 1000);
+const dirYaw = (a, b) => Math.atan2(b.x - a.x, b.y - a.y) * 180 / Math.PI;
+const isTouch = matchMedia("(pointer: coarse)").matches;
+const D2R = Math.PI / 180;
+
+// ---------------------------------------------------------------- renderer
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.appendChild(renderer.domElement);
+const useHi = !isTouch && renderer.capabilities.maxTextureSize >= 8192;
+const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 2000);
+function size() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener("resize", size); size();
+const loadEl = document.getElementById("load"), hintEl = document.getElementById("hint");
+let mode = "tour";
+setTimeout(() => { hintEl.style.opacity = 0; }, 7000);
+
+// ---------------------------------------------------------------- 360 views
+const tourScene = new THREE.Scene();
+const sph = new THREE.SphereGeometry(500, 96, 64);
+{ // texture u from the vertex direction, so the image always matches heading
+  const pos = sph.attributes.position, uv = sph.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i), u0 = uv.getX(i);
+    uv.setXY(i, 0.25 - u0, 0.5 + Math.asin(Math.max(-1, Math.min(1, y / 500))) / Math.PI);
+  }
+  uv.needsUpdate = true;
+}
+const sphMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide });
+tourScene.add(new THREE.Mesh(sph, sphMat));
+let head = 0, pitch = 0, fov = 72, cur = null;
+const texLoader = new THREE.TextureLoader();
+const hots = document.getElementById("hots");
+let hotList = [], loadSeq = 0;
+function showPlace(id) {
+  const p = byId[id]; if (!p) return; cur = p;
+  document.getElementById("place").textContent = p.name;
+  document.getElementById("sub").textContent = p.time + ", 22 October";
+  document.querySelectorAll(".rail button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+  history.replaceState(null, "", "#" + id);
+  if (mode === "walk") { teleport(p); return; }
+  loadEl.hidden = false; loadEl.textContent = "LOADING";
+  const seq = ++loadSeq;
+  const apply = (t, final) => {
+    if (seq !== loadSeq) { t.dispose(); return; }
+    t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    if (sphMat.map) sphMat.map.dispose();
+    sphMat.map = t; sphMat.needsUpdate = true; loadEl.hidden = true;
+  };
+  // quick 4K first on desktop, then swap to 8K
+  texLoader.load("pano4k/" + p.id + ".jpg", (t) => { apply(t); if (useHi) texLoader.load("pano/" + p.id + ".jpg", (t8) => apply(t8)); });
+  hots.replaceChildren(); hotList = [];
+  for (const lid of liveLinks(p)) {
+    const q = byId[lid];
+    const h = ((dirYaw(p, q) - p.yaw + 540) % 360) - 180;
+    const dist = Math.hypot(q.x - p.x, q.y - p.y) / 1000, dz = (q.z - p.z) / 1000;
+    const el = Math.max(-28, Math.min(12, Math.atan2(dz - 1.0, dist) * 180 / Math.PI));
+    const b = document.createElement("button"); b.className = "hot";
+    const i = document.createElement("i"); i.textContent = "↑"; const s = document.createElement("span"); s.textContent = q.name;
+    b.append(i, s); b.addEventListener("click", () => { setHead(((dirYaw(p, q) - q.yaw + 540) % 360) - 180); pitch = 0; showPlace(lid); });
+    hots.append(b);
+    const hr = h * D2R, er = el * D2R;
+    hotList.push({ el: b, v: new THREE.Vector3(Math.sin(hr) * Math.cos(er), Math.sin(er), -Math.cos(hr) * Math.cos(er)).multiplyScalar(400) });
+  }
+}
+function placeHots() {
+  const w = innerWidth, h = innerHeight;
+  for (const hp of hotList) {
+    const v = hp.v.clone().project(camera);
+    const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+    hp.el.hidden = !vis || mode !== "tour";
+    if (vis) { hp.el.style.left = ((v.x + 1) / 2 * w) + "px"; hp.el.style.top = ((1 - v.y) / 2 * h) + "px"; }
+  }
+}
+
+// ---------------------------------------------------------------- move-the-phone look (device orientation)
+let gyro = false, devQ = null, yawOff = 0, screenAng = 0;
+const qTmp = new THREE.Quaternion(), qX = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), zee = new THREE.Vector3(0, 0, 1), eul = new THREE.Euler();
+function onOrient(e) {
+  if (e.alpha == null) return;
+  eul.set(e.beta * D2R, e.alpha * D2R, -e.gamma * D2R, "YXZ");
+  const q = new THREE.Quaternion().setFromEuler(eul).multiply(qX).multiply(qTmp.setFromAxisAngle(zee, -screenAng * D2R));
+  devQ = q;
+}
+function readScreen() { screenAng = (screen.orientation && screen.orientation.angle) || window.orientation || 0; }
+addEventListener("orientationchange", readScreen); readScreen();
+const devHead = (q) => { const f = new THREE.Vector3(0, 0, -1).applyQuaternion(q); return Math.atan2(f.x, -f.z) / D2R; };
+function setHead(h) { head = h; if (gyro && devQ) yawOff = devHead(devQ) - head; }
+const gyroBtn = document.getElementById("b-gyro");
+if (isTouch && "DeviceOrientationEvent" in window) gyroBtn.hidden = false;
+gyroBtn.addEventListener("click", async () => {
+  if (gyro) { gyro = false; gyroBtn.setAttribute("aria-pressed", "false"); return; }
+  try { if (typeof DeviceOrientationEvent.requestPermission === "function" && (await DeviceOrientationEvent.requestPermission()) !== "granted") return; } catch (e) { return; }
+  addEventListener("deviceorientation", onOrient);
+  gyro = true; gyroBtn.setAttribute("aria-pressed", "true"); devQ = null;
+  const wait = setInterval(() => { if (devQ) { yawOff = devHead(devQ) - head; clearInterval(wait); } }, 50);
+  setTimeout(() => clearInterval(wait), 3000);
+});
+
+// ---------------------------------------------------------------- VR headset (side by side, phone in a cardboard viewer)
+const vrEl = document.getElementById("vr"), vrBtn = document.getElementById("b-vr");
+if (isTouch) vrBtn.hidden = false;
+let vr = false;
+const camL = new THREE.PerspectiveCamera(80, 1, 1, 2000), camR = new THREE.PerspectiveCamera(80, 1, 1, 2000);
+vrBtn.addEventListener("click", async () => {
+  if (!gyro) gyroBtn.click();
+  vr = true; vrEl.classList.add("on"); vrEl.appendChild(renderer.domElement);
+  try { await document.documentElement.requestFullscreen(); await screen.orientation.lock("landscape"); } catch (e) {}
+});
+document.getElementById("vr-x").addEventListener("click", () => {
+  vr = false; vrEl.classList.remove("on"); stage.appendChild(renderer.domElement); renderer.setScissorTest(false); size();
+  try { screen.orientation.unlock(); } catch (e) {}
+  if (document.fullscreenElement) document.exitFullscreen();
+});
+document.getElementById("b-fs").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+});
+
+// ---------------------------------------------------------------- free walk (lighter model)
+const walkScene = new THREE.Scene();
+walkScene.background = new THREE.Color(0xc9d6e2); walkScene.fog = new THREE.Fog(0xd8dde0, 60, 320);
+walkScene.add(new THREE.HemisphereLight(0xdfe9f3, 0x8a7a64, 0.75));
+const sun = new THREE.DirectionalLight(0xffe2b8, 1.15); sun.position.set(-120, 60, -80); walkScene.add(sun);
+let walkReady = false, colliders = [], walkPos = new THREE.Vector3(), walkHead = 0, walkPitch = 0;
+const ray = new THREE.Raycaster(); ray.firstHitOnly = true;
+if (window.MeshBVHLib) {
+  THREE.BufferGeometry.prototype.computeBoundsTree = MeshBVHLib.computeBoundsTree;
+  THREE.Mesh.prototype.raycast = MeshBVHLib.acceleratedRaycast;
+}
+const SOLID = new Set(["FLOOR", "ROOF", "CONCRETE", "WALL", "MULLION", "PAVING", "GROUND", "TURF", "GRAVEL", "EARTH", "GRATING", "CTX", "CTXDARK", "BRICK", "STEEL"]);
+function loadWalk() {
+  if (walkReady || loadWalk.busy) return; loadWalk.busy = true; loadEl.hidden = false; loadEl.textContent = "LOADING THE MODEL";
+  const draco = new THREE.DRACOLoader(); draco.setDecoderPath("draco/");
+  const gl = new THREE.GLTFLoader(); gl.setDRACOLoader(draco);
+  gl.load("model/walk.glb", (g) => {
+    g.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material.side = THREE.DoubleSide;
+      const nm = (o.name || "").toUpperCase(), pn = (o.parent && o.parent.name || "").toUpperCase();
+      if (SOLID.has(nm) || SOLID.has(pn)) { if (o.geometry.computeBoundsTree) o.geometry.computeBoundsTree(); colliders.push(o); }
+    });
+    walkScene.add(g.scene); walkReady = true; loadEl.hidden = true; loadEl.textContent = "LOADING";
+    teleport(cur || PLACES[0]);
+  }, undefined, () => { loadEl.textContent = "THE 3D MODEL COULD NOT LOAD ON THIS DEVICE. THE 360 VIEWS STILL WORK."; });
+}
+function floorAt(p, from) {
+  ray.set(new THREE.Vector3(p.x, from, p.z), new THREE.Vector3(0, -1, 0)); ray.far = 40;
+  const h = ray.intersectObjects(colliders, false); return h.length ? h[0].point.y : null;
+}
+function teleport(p) { const v = toWalk(p); walkPos.set(v.x, v.y - 1.6, v.z); walkHead = p.yaw + head; walkPitch = 0; }
+const keys = {}; addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; }); addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+let joy = { x: 0, y: 0 };
+function stepWalk(dt) {
+  let f = 0, s = 0;
+  if (keys["w"] || keys["arrowup"]) f += 1; if (keys["s"] || keys["arrowdown"]) f -= 1;
+  if (keys["a"]) s -= 1; if (keys["d"]) s += 1;
+  if (keys["arrowleft"]) walkHead -= 90 * dt; if (keys["arrowright"]) walkHead += 90 * dt;
+  f += -joy.y; s += joy.x;
+  const speed = (keys["shift"] ? 6 : 2.6) * dt, hr = walkHead * D2R;
+  const mv = new THREE.Vector3(Math.sin(hr), 0, -Math.cos(hr)).multiplyScalar(f).add(new THREE.Vector3(Math.cos(hr), 0, Math.sin(hr)).multiplyScalar(s));
+  if (mv.lengthSq() > 1e-6 && colliders.length) {
+    mv.normalize().multiplyScalar(speed);
+    let blocked = false;
+    for (const hgt of [0.5, 1.3]) {
+      ray.set(new THREE.Vector3(walkPos.x, walkPos.y + hgt, walkPos.z), mv.clone().normalize()); ray.far = mv.length() + 0.35;
+      if (ray.intersectObjects(colliders, false).length) { blocked = true; break; }
+    }
+    if (!blocked) {
+      const nx = walkPos.x + mv.x, nz = walkPos.z + mv.z, fl = floorAt({ x: nx, z: nz }, walkPos.y + 0.5);
+      if (fl !== null && fl <= walkPos.y + 0.5) { walkPos.x = nx; walkPos.z = nz; }
+    }
+  }
+  if (colliders.length) { const fl = floorAt(walkPos, walkPos.y + 0.5); if (fl !== null) walkPos.y = fl > walkPos.y ? fl : Math.max(fl, walkPos.y - 9 * dt); }
+  camera.position.set(walkPos.x, walkPos.y + 1.6, walkPos.z);
+}
+
+// ---------------------------------------------------------------- input: drag to look, wheel / pinch to zoom, joystick in walk
+let drag = null; const pts = new Map(); let pinch = null;
+stage.addEventListener("pointerdown", (e) => {
+  pts.set(e.pointerId, e); stage.setPointerCapture(e.pointerId);
+  if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), f: fov }; drag = null; return; }
+  drag = { x: e.clientX, y: e.clientY, h: mode === "tour" ? head : walkHead, p: mode === "tour" ? pitch : walkPitch, o: yawOff };
+});
+stage.addEventListener("pointermove", (e) => {
+  if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
+  if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); setFov(pinch.f * pinch.d / Math.max(d, 1)); return; }
+  if (!drag) return; const k = fov / innerHeight;
+  const dx = (e.clientX - drag.x) * k * 1.1, dy = (e.clientY - drag.y) * k * 1.1;
+  if (mode === "tour") { if (gyro) yawOff = drag.o + dx; else { head = drag.h - dx; pitch = Math.max(-80, Math.min(80, drag.p + dy)); } }
+  else { walkHead = drag.h - dx; walkPitch = Math.max(-80, Math.min(80, drag.p + dy)); }
+});
+const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) drag = null; };
+stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
+function setFov(f) { fov = Math.max(35, Math.min(100, f)); camera.fov = fov; camera.updateProjectionMatrix(); }
+stage.addEventListener("wheel", (e) => { e.preventDefault(); setFov(fov + e.deltaY * 0.03); }, { passive: false });
+const joyEl = document.getElementById("joy"), knob = joyEl.querySelector("b");
+joyEl.addEventListener("pointerdown", (e) => { joyEl.setPointerCapture(e.pointerId); joyMove(e); });
+joyEl.addEventListener("pointermove", (e) => { if (e.buttons || e.pressure) joyMove(e); });
+joyEl.addEventListener("pointerup", () => { joy = { x: 0, y: 0 }; knob.style.transform = ""; });
+function joyMove(e) {
+  const r = joyEl.getBoundingClientRect(); let x = (e.clientX - r.left - r.width / 2) / (r.width / 2), y = (e.clientY - r.top - r.height / 2) / (r.height / 2);
+  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy = { x, y }; knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`;
+}
+
+// ---------------------------------------------------------------- modes + view gallery
+function setMode(m) {
+  mode = m;
+  document.getElementById("m-tour").setAttribute("aria-pressed", String(m === "tour"));
+  document.getElementById("m-walk").setAttribute("aria-pressed", String(m === "walk"));
+  joyEl.hidden = !(m === "walk" && isTouch);
+  hintEl.style.opacity = 1; setTimeout(() => { hintEl.style.opacity = 0; }, 6000);
+  hintEl.textContent = m === "tour" ? "Drag to look around. Tap an arrow or a view below to move."
+    : (isTouch ? "Simplified model. Joystick to walk, drag to look." : "Simplified model. W A S D to walk, drag to look, Shift to run.");
+  camera.fov = fov = m === "tour" ? 72 : 70; camera.near = m === "tour" ? 1 : 0.05; camera.updateProjectionMatrix();
+  if (m === "walk") { loadWalk(); if (walkReady && cur) teleport(cur); }
+  else { loadEl.hidden = true; if (cur) showPlace(cur.id); }
+  hotList.forEach((hp) => { hp.el.hidden = m !== "tour"; });
+}
+document.getElementById("m-tour").addEventListener("click", () => setMode("tour"));
+document.getElementById("m-walk").addEventListener("click", () => setMode("walk"));
+const rail = document.getElementById("rail");
+PLACES.forEach((p) => {
+  const b = document.createElement("button"); b.dataset.id = p.id; b.setAttribute("aria-label", p.name);
+  const im = document.createElement("img"); im.src = "thumb/" + p.id + ".jpg"; im.alt = ""; im.loading = "lazy";
+  const s = document.createElement("span"); s.textContent = p.name;
+  b.append(im, s); b.addEventListener("click", () => { setHead(0); pitch = 0; showPlace(p.id); }); rail.append(b);
+});
+
+// ---------------------------------------------------------------- loop
+let last = performance.now();
+const qY = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+(function loop(t) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  if (mode === "tour") {
+    camera.position.set(0, 0, 0);
+    if (gyro && devQ) {
+      camera.quaternion.copy(qY.setFromAxisAngle(Y, yawOff * D2R)).multiply(devQ);
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      head = Math.atan2(f.x, -f.z) / D2R; pitch = Math.asin(Math.max(-1, Math.min(1, f.y))) / D2R;
+    } else {
+      const hr = head * D2R, pr = pitch * D2R;
+      camera.lookAt(Math.sin(hr) * Math.cos(pr), Math.sin(pr), -Math.cos(hr) * Math.cos(pr));
+    }
+    if (vr) {   // two eyes side by side, same view (a panorama has no depth)
+      const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); renderer.setScissorTest(true);
+      for (const [c, x0] of [[camL, 0], [camR, w / 2]]) {
+        c.aspect = (w / 2) / h; c.fov = 80; c.updateProjectionMatrix(); c.position.set(0, 0, 0); c.quaternion.copy(camera.quaternion);
+        renderer.setViewport(x0, 0, w / 2, h); renderer.setScissor(x0, 0, w / 2, h); renderer.render(tourScene, c);
+      }
+      return;
+    }
+    renderer.render(tourScene, camera); placeHots();
+  } else {
+    if (walkReady) stepWalk(dt);
+    const hr = walkHead * D2R, pr = walkPitch * D2R;
+    camera.lookAt(camera.position.x + Math.sin(hr) * Math.cos(pr), camera.position.y + Math.sin(pr), camera.position.z - Math.cos(hr) * Math.cos(pr));
+    renderer.render(walkScene, camera);
+  }
+})(performance.now());
+const want = location.hash.slice(1);
+const start = byId[want] ? want : (byId["F03_PLAZA"] ? "F03_PLAZA" : (PLACES[0] || {}).id);
+if (start) showPlace(start);
+</script>
+</body>
+</html>
