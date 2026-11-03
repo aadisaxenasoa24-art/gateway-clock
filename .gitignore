@@ -1,2 +1,5 @@
 _build.py
+_sync.py
+_sync.log
+_sync.stop
 *.tmp
