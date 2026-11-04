@@ -67,7 +67,7 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 <div id="hots"></div>
 <div class="chip"><small>Gateway Clock</small><b id="place">The plaza</b><span id="sub">16:30, 22 October</span></div>
 <div class="ctl" role="group" aria-label="View">
-  <button id="m-tour" aria-pressed="true">360 views</button><button id="m-walk" aria-pressed="false">Free walk</button>
+  <button id="m-tour" aria-pressed="true">360 views</button><button id="m-walk" aria-pressed="false">Walk in 3D</button><button id="b-photo" aria-pressed="true" hidden>Photo look</button>
   <button id="b-gyro" aria-pressed="false" hidden>Move phone</button><button id="b-vr" hidden>VR headset</button><button id="b-fs">Full screen</button>
 </div>
 <div class="hint" id="hint">Drag to look around. Tap an arrow or a view below to move.</div>
@@ -75,28 +75,42 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 <div id="joy" hidden><b></b></div>
 <nav class="rail" id="rail" aria-label="Views"></nav>
 <div id="vr"><button id="vr-x">Exit VR</button></div>
-<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS"];</script>
+<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS",  "W02_PORCH_FORUM",  "W03_FORUM_COURT",  "W04_PORCH_COURT"];</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
 <script src="lib/DRACOLoader.js"></script>
+<script src="lib/meshopt_decoder.js"></script>
 <script src="lib/bvh.js"></script>
 <script>
 // ---------------------------------------------------------------- places (Rhino model mm; yaw = D5 camera heading of the panorama)
 // D5 heading of a direction = atan2(dRhinoX, dRhinoY); in a panorama, +heading is to the right of the image centre.
+// W* = in-between points (4 Nov). Links run through them; while one is not rendered yet, liveLinks() skips past it.
 const P = [
-  { id: "T01_ROAD", name: "The road", time: "16:40", x: 36000, y: 10000, z: 14264, yaw: 0, links: ["F03_PLAZA"] },
-  { id: "F03_PLAZA", name: "The plaza", time: "16:30", x: 8500, y: -10500, z: 13815, yaw: -170.8, links: ["T01_ROAD", "T03_PORCH"] },
-  { id: "T03_PORCH", name: "Entry porch", time: "16:40", x: 9000, y: -28500, z: 14135, yaw: 0, links: ["F03_PLAZA", "T04_FORUM", "T09_COURT"] },
-  { id: "T04_FORUM", name: "Forum", time: "16:40", x: -12000, y: -37500, z: 14000, yaw: 0, links: ["T03_PORCH", "T05_FF_CHIMNEY", "T09_COURT"] },
-  { id: "T05_FF_CHIMNEY", name: "By the thermal chimney", time: "16:40", x: 10000, y: -34000, z: 18600, yaw: 0, links: ["T04_FORUM", "T06_LIBRARY", "T10_BRIDGE"] },
-  { id: "T06_LIBRARY", name: "Library", time: "16:40", x: 33220, y: -37900, z: 18600, yaw: 0, links: ["T05_FF_CHIMNEY", "T07_STUDIO", "T08_WALKWAY"] },
-  { id: "T07_STUDIO", name: "Studio, second floor", time: "16:40", x: 36000, y: -31000, z: 23000, yaw: 0, links: ["T06_LIBRARY"] },
+  { id: "T01_ROAD", name: "The road", time: "16:40", x: 36000, y: 10000, z: 14264, yaw: 0, links: ["W10_ROAD_PLAZA"] },
+  { id: "F03_PLAZA", name: "The plaza", time: "16:30", x: 8500, y: -10500, z: 13815, yaw: -170.8, links: ["W10_ROAD_PLAZA", "W01_PLAZA_PORCH"] },
+  { id: "T03_PORCH", name: "Entry porch", time: "16:40", x: 9000, y: -28500, z: 14135, yaw: 0, links: ["W01_PLAZA_PORCH", "T04_FORUM", "W04_PORCH_COURT"] },
+  { id: "T04_FORUM", name: "Forum", time: "16:40", x: -12000, y: -37500, z: 14000, yaw: 0, links: ["T03_PORCH", "T05_FF_CHIMNEY", "W03_FORUM_COURT", "W12_FORUM_EAST"] },
+  { id: "T05_FF_CHIMNEY", name: "By the thermal chimney", time: "16:40", x: 10000, y: -34000, z: 18600, yaw: 0, links: ["T04_FORUM", "T06_LIBRARY", "W08_FF_BRIDGE_LINK"] },
+  { id: "T06_LIBRARY", name: "Library", time: "16:40", x: 33220, y: -37900, z: 18600, yaw: 0, links: ["T05_FF_CHIMNEY", "T07_STUDIO", "T08_WALKWAY", "W14_LIBRARY_EAST"] },
+  { id: "T07_STUDIO", name: "Studio, second floor", time: "16:40", x: 36000, y: -31000, z: 23000, yaw: 0, links: ["T06_LIBRARY", "W09_SF_STUDIO_WEST"] },
   { id: "T08_WALKWAY", name: "K1 walkway", time: "16:40", x: 30000, y: -29100, z: 18620, yaw: 0, links: ["T06_LIBRARY"] },
-  { id: "T09_COURT", name: "The court", time: "16:40", x: 6000, y: -52000, z: 14050, yaw: 0, links: ["T03_PORCH", "T04_FORUM", "T10_BRIDGE", "T11_MAKER", "T12_CAMPUS"] },
-  { id: "T10_BRIDGE", name: "Court bridge room", time: "16:40", x: 6600, y: -57800, z: 18600, yaw: 0, links: ["T09_COURT", "T05_FF_CHIMNEY"] },
-  { id: "T11_MAKER", name: "Maker hall", time: "16:40", x: -16000, y: -66500, z: 14150, yaw: 0, links: ["T09_COURT", "T12_CAMPUS"] },
-  { id: "T12_CAMPUS", name: "Campus side", time: "16:40", x: 6000, y: -80000, z: 13670, yaw: 0, links: ["T09_COURT", "T11_MAKER", "F14_PITCH"] },
-  { id: "F14_PITCH", name: "From the pitch", time: "16:40", x: -36000, y: -119300, z: 17700, yaw: 33.6, links: ["T12_CAMPUS"] },
+  { id: "T09_COURT", name: "The court", time: "16:40", x: 6000, y: -52000, z: 14050, yaw: 0, links: ["W04_PORCH_COURT", "W03_FORUM_COURT", "T10_BRIDGE", "W05_COURT_MAKER", "W06_COURT_CAMPUS"] },
+  { id: "T10_BRIDGE", name: "Court bridge room", time: "16:40", x: 6600, y: -57800, z: 18600, yaw: 0, links: ["T09_COURT", "W08_FF_BRIDGE_LINK"] },
+  { id: "T11_MAKER", name: "Maker hall", time: "16:40", x: -16000, y: -66500, z: 14150, yaw: 0, links: ["W05_COURT_MAKER", "T12_CAMPUS", "W13_MAKER_WEST"] },
+  { id: "T12_CAMPUS", name: "Campus side", time: "16:40", x: 6000, y: -80000, z: 13670, yaw: 0, links: ["W06_COURT_CAMPUS", "T11_MAKER", "W11_CAMPUS_PITCH"] },
+  { id: "F14_PITCH", name: "From the pitch", time: "16:40", x: -36000, y: -119300, z: 17700, yaw: 33.6, links: ["W11_CAMPUS_PITCH"] },
+  { id: "W10_ROAD_PLAZA", name: "Road to plaza", time: "16:40", x: 22000, y: -250, z: 14560, yaw: 0, links: ["T01_ROAD", "F03_PLAZA"] },
+  { id: "W01_PLAZA_PORCH", name: "Plaza to porch", time: "16:40", x: 8750, y: -19500, z: 13803, yaw: 0, links: ["F03_PLAZA", "T03_PORCH"] },
+  { id: "W04_PORCH_COURT", name: "Porch to court", time: "16:40", x: 7500, y: -40250, z: 14200, yaw: 0, links: ["T03_PORCH", "T09_COURT"] },
+  { id: "W03_FORUM_COURT", name: "Forum to court", time: "16:40", x: -3000, y: -44750, z: 14200, yaw: 0, links: ["T04_FORUM", "T09_COURT"] },
+  { id: "W12_FORUM_EAST", name: "Beside the forum", time: "16:40", x: -12000, y: -46000, z: 14018, yaw: 0, links: ["T04_FORUM"] },
+  { id: "W05_COURT_MAKER", name: "Court to maker hall", time: "16:40", x: -5000, y: -59250, z: 14200, yaw: 0, links: ["T09_COURT", "T11_MAKER"] },
+  { id: "W13_MAKER_WEST", name: "Maker hall, west", time: "16:40", x: -26000, y: -66500, z: 14200, yaw: 0, links: ["T11_MAKER"] },
+  { id: "W06_COURT_CAMPUS", name: "Court to campus", time: "16:40", x: 6000, y: -66000, z: 14200, yaw: 0, links: ["T09_COURT", "T12_CAMPUS"] },
+  { id: "W11_CAMPUS_PITCH", name: "Campus to pitch", time: "16:40", x: -15000, y: -100000, z: 15500, yaw: 0, links: ["T12_CAMPUS", "F14_PITCH"] },
+  { id: "W08_FF_BRIDGE_LINK", name: "First-floor link", time: "16:40", x: 8300, y: -45900, z: 18600, yaw: 0, links: ["T05_FF_CHIMNEY", "T10_BRIDGE"] },
+  { id: "W14_LIBRARY_EAST", name: "Library, east", time: "16:40", x: 40000, y: -40000, z: 18600, yaw: 0, links: ["T06_LIBRARY"] },
+  { id: "W09_SF_STUDIO_WEST", name: "Studio, west", time: "16:40", x: 23000, y: -36000, z: 23000, yaw: 0, links: ["T07_STUDIO"] },
 ];
 const AVAIL = window.__PANOS__ || [];
 const PLACES = P.filter((p) => AVAIL.includes(p.id));
@@ -230,63 +244,277 @@ document.getElementById("b-fs").addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
 });
 
-// ---------------------------------------------------------------- free walk (lighter model)
+// ---------------------------------------------------------------- walk in 3D (v2, 4 Nov)
+// Full-detail model in 40 m tiles (model/v2/manifest.json), textured PBR materials, low golden-hour sun with shadows,
+// capsule walking (walls, glass, rails and furniture stop you; stairs and ramps carry you), and the D5 360s projected
+// onto the model near each view point, so the photo stays photoreal while you walk around it ("photo look").
+const MV = "model/v2/";
 const walkScene = new THREE.Scene();
-walkScene.background = new THREE.Color(0xc9d6e2); walkScene.fog = new THREE.Fog(0xd8dde0, 60, 320);
-walkScene.add(new THREE.HemisphereLight(0xdfe9f3, 0x8a7a64, 0.75));
-const sun = new THREE.DirectionalLight(0xffe2b8, 1.15); sun.position.set(-120, 60, -80); walkScene.add(sun);
-let walkReady = false, colliders = [], walkPos = new THREE.Vector3(), walkHead = 0, walkPitch = 0;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+sphMat.toneMapped = false;
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+// sun: measured from the sun disc in the D5 360s (plaza, porch, pitch agree): D5 heading -30 deg, 17 deg above the horizon
+const SUN = (() => { const H = -30 * D2R, el = 17 * D2R; return new THREE.Vector3(Math.cos(el) * Math.sin(H), Math.sin(el), -Math.cos(el) * Math.cos(H)).normalize(); })();
+const HOR = new THREE.Color(0xd9d3c8);
+walkScene.fog = new THREE.Fog(HOR, 160, 900);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uSun: { value: SUN } },
+  vertexShader: "varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: `varying vec3 vD; uniform vec3 uSun;
+    void main(){ vec3 d = normalize(vD); float h = clamp(d.y, 0.0, 1.0);
+      vec3 c = mix(vec3(0.86, 0.84, 0.80), vec3(0.38, 0.56, 0.80), pow(h, 0.5));
+      float s = max(dot(d, uSun), 0.0); c += vec3(1.0, 0.72, 0.42) * pow(s, 16.0) * 0.45 + vec3(1.0, 0.95, 0.85) * pow(s, 1200.0) * 3.0;
+      if (d.y < 0.0) c = mix(vec3(0.86, 0.84, 0.80), vec3(0.62, 0.58, 0.52), clamp(-d.y * 5.0, 0.0, 1.0));
+      gl_FragColor = vec4(c, 1.0); }` }));
+sky.renderOrder = -1; sky.frustumCulled = false; walkScene.add(sky);
+const hemi = new THREE.HemisphereLight(0xd6e4f2, 0x9c8768, 0.85); walkScene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffd6a0, 2.7); sun.castShadow = true;
+sun.shadow.mapSize.set(isTouch ? 2048 : 4096, isTouch ? 2048 : 4096);
+const SH = isTouch ? 34 : 48; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 500 });
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03;
+walkScene.add(sun, sun.target);
+let shadowAt = new THREE.Vector3(1e9, 0, 0);
+function aimSun(p) { if (p.distanceTo(shadowAt) < 8) return; shadowAt.copy(p);
+  sun.target.position.copy(p); sun.position.copy(p).addScaledVector(SUN, 220); sun.target.updateMatrixWorld(); renderer.shadowMap.needsUpdate = true; }
+
+// --- materials: one per model class (mesh name), textures tile in metres (UVs are box-mapped in the build)
+const tl = new THREE.TextureLoader();
+function tx(n, srgb = true) { const t = tl.load(MV + "tex/" + n); t.wrapS = t.wrapT = THREE.RepeatWrapping; if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = Math.min(8, maxAniso); return t; }
+const PU = { uPA: { value: null }, uPB: { value: null }, uDA: { value: null }, uDB: { value: null }, uCA: { value: new THREE.Vector3() }, uCB: { value: new THREE.Vector3() },
+  uYA: { value: 0 }, uYB: { value: 0 }, uWA: { value: 0 }, uWB: { value: 0 }, uFar: { value: 400 } };
+const PROJ_GLSL = `uniform sampler2D uPA; uniform sampler2D uPB; uniform samplerCube uDA; uniform samplerCube uDB;
+uniform vec3 uCA; uniform vec3 uCB; uniform float uYA; uniform float uYB; uniform float uWA; uniform float uWB; uniform float uFar; varying vec3 vWP;
+vec2 eqUV(vec3 d, float yaw){ float c = length(d.xz); float H = atan(d.x, -d.z) - yaw; vec2 L = vec2(sin(H) * c, -cos(H) * c);
+  float phi = atan(L.y, -L.x); return vec2(fract(0.25 - phi / 6.2831853), 0.5 + asin(clamp(d.y, -1.0, 1.0)) / 3.14159265); }
+float pvis(samplerCube D, vec3 C){ vec3 d = vWP - C; float r = length(d); float ref = unpackRGBAToDepth(textureCube(D, d)) * uFar; return step(r, ref + 0.05 + r * 0.015); }`;
+function inject(m, proj) {
+  m.onBeforeCompile = (sh) => {
+    if (!proj) return;
+    Object.assign(sh.uniforms, PU);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWP;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <packing>", "#include <packing>\n" + PROJ_GLSL)
+      .replace("#include <dithering_fragment>", `#include <dithering_fragment>
+        { float ws = 0.0; vec3 acc = vec3(0.0);
+          if (uWA > 0.002) { float v = pvis(uDA, uCA) * uWA; acc += texture2D(uPA, eqUV(normalize(vWP - uCA), uYA)).rgb * v; ws += v; }
+          if (uWB > 0.002) { float v = pvis(uDB, uCB) * uWB; acc += texture2D(uPB, eqUV(normalize(vWP - uCB), uYB)).rgb * v; ws += v; }
+          if (ws > 0.002) gl_FragColor.rgb = mix(gl_FragColor.rgb, acc / ws, clamp(ws, 0.0, 1.0)); }`);
+  };
+  m.customProgramCacheKey = () => (proj ? "proj" : "plain");
+  return m;
+}
+function std(o, proj = true) { return inject(new THREE.MeshStandardMaterial(Object.assign({ side: THREE.DoubleSide, envMapIntensity: 0.7 }, o)), proj); }
+const k1map = tx("corten.jpg"), k1a = tx("k1perf.png", false); k1map.repeat.set(0.4, 0.4); k1a.repeat.set(0.4, 0.4);   // 50 mm hole pitch, 19 mm holes (measured open area 11 %)
+const MAT = {
+  K1: std({ map: k1map, alphaMap: k1a, alphaTest: 0.5, metalness: 0.45, roughness: 0.42 }),
+  K1FRAME: std({ color: 0x3a3632, metalness: 0.6, roughness: 0.5 }),
+  STEEL: std({ color: 0x2c2c2e, metalness: 0.6, roughness: 0.45 }), STEELRED: std({ color: 0x5e0c0e, metalness: 0.4, roughness: 0.5 }),
+  MULLION: std({ color: 0x2a2b2e, metalness: 0.6, roughness: 0.4 }), GRATING: std({ color: 0x6e7072, metalness: 0.6, roughness: 0.6 }),
+  MACHINE: std({ color: 0x46484c, metalness: 0.5, roughness: 0.45 }),
+  GLASS: std({ color: 0xbcd2de, metalness: 0.0, roughness: 0.04, transparent: true, opacity: 0.18, depthWrite: false, envMapIntensity: 1.6 }, false),
+  GLASSCTX: std({ color: 0x6f8494, metalness: 0.3, roughness: 0.1, transparent: true, opacity: 0.75, envMapIntensity: 1.2 }, false),
+  CHIMNEY: std({ map: tx("plaster.jpg"), roughness: 0.8 }), CONCRETE: std({ map: tx("concrete.jpg"), roughness: 0.85 }),
+  FLOOR: std({ map: tx("woodfloor.jpg"), roughness: 0.55 }), ROOF: std({ map: tx("roof.jpg"), roughness: 0.9 }),
+  WALL: std({ map: tx("woodwall.jpg"), roughness: 0.7 }), TIMBER: std({ map: tx("timber.jpg"), roughness: 0.55 }),
+  FURN: std({ map: tx("plywood.jpg"), roughness: 0.6 }), BOOKS: std({ map: tx("books.jpg"), roughness: 0.8 }),
+  MODEL: std({ color: 0xece8e0, roughness: 0.8 }),
+  LIGHT: std({ color: 0xfff3dc, emissive: 0xffe2b8, emissiveIntensity: 1.4, roughness: 0.4 }, false),
+  CTX: std({ map: tx("plaster.jpg"), color: 0xf2ece2, roughness: 0.9 }), CTXDARK: std({ map: tx("plasterdark.jpg"), roughness: 0.85 }),
+  CTXROOF: std({ color: 0xa65c42, roughness: 0.85 }), BRICK: std({ map: tx("brick.jpg"), roughness: 0.9 }),
+  ROAD: std({ map: tx("asphalt.jpg"), roughness: 0.95 }), MARKING: std({ color: 0xeeeeea, roughness: 0.8 }),
+  PAVING: std({ map: tx("paving.jpg"), roughness: 0.9 }), EARTH: std({ map: tx("soil.jpg"), roughness: 1 }),
+  TURF: std({ map: tx("grass.jpg"), roughness: 1 }), GRAVEL: std({ map: tx("gravel.jpg"), roughness: 1 }),
+  GROUND: std({ map: tx("soil.jpg"), color: 0xfff4e2, roughness: 1 }),
+};
+const NOSHADOW = new Set(["GLASS", "GLASSCTX", "LIGHT", "MARKING"]);
+const NOCOLLIDE = new Set(["LIGHT", "MODEL", "BOOKS", "MARKING", "CTXROOF"].concat(isTouch ? ["FURN"] : []));
+const NOFLOOR = new Set(["LIGHT", "MODEL", "BOOKS", "FURN", "MACHINE", "GLASS", "GLASSCTX", "K1", "K1FRAME", "MULLION", "CTXROOF"]);
+
+// --- loading: nearest tiles first, two at a time
+let walkReady = false, colliders = [], floors = [], tilesLeft = 0, depthDirty = false;
+const pos = new THREE.Vector3(), lastSafe = new THREE.Vector3(); let walkHead = 0, walkPitch = 0, vy = 0, grounded = false;
 const ray = new THREE.Raycaster(); ray.firstHitOnly = true;
-if (window.MeshBVHLib) {
-  THREE.BufferGeometry.prototype.computeBoundsTree = MeshBVHLib.computeBoundsTree;
-  THREE.Mesh.prototype.raycast = MeshBVHLib.acceleratedRaycast;
-}
-const SOLID = new Set(["FLOOR", "ROOF", "CONCRETE", "WALL", "MULLION", "PAVING", "GROUND", "TURF", "GRAVEL", "EARTH", "GRATING", "CTX", "CTXDARK", "BRICK", "STEEL"]);
+if (window.MeshBVHLib) { THREE.BufferGeometry.prototype.computeBoundsTree = MeshBVHLib.computeBoundsTree; THREE.Mesh.prototype.raycast = MeshBVHLib.acceleratedRaycast; }
 function loadWalk() {
-  if (walkReady || loadWalk.busy) return; loadWalk.busy = true; loadEl.hidden = false; loadEl.textContent = "LOADING THE MODEL";
-  const draco = new THREE.DRACOLoader(); draco.setDecoderPath("draco/");
-  const gl = new THREE.GLTFLoader(); gl.setDRACOLoader(draco);
-  gl.load("model/walk.glb", (g) => {
-    g.scene.traverse((o) => {
-      if (!o.isMesh) return;
-      o.material.side = THREE.DoubleSide;
-      const nm = (o.name || "").toUpperCase(), pn = (o.parent && o.parent.name || "").toUpperCase();
-      if (SOLID.has(nm) || SOLID.has(pn)) { if (o.geometry.computeBoundsTree) o.geometry.computeBoundsTree(); colliders.push(o); }
+  if (loadWalk.busy) return; loadWalk.busy = true; loadEl.hidden = false; loadEl.textContent = "LOADING THE MODEL";
+  const gl = new THREE.GLTFLoader(); if (window.MeshoptDecoder) gl.setMeshoptDecoder(MeshoptDecoder);
+  fetch(MV + "manifest.json").then((r) => r.json()).then((man) => {
+    const at = toWalk(cur || PLACES[0]);
+    const q = man.tiles.map((t) => ({ t, d: Math.hypot((t.min[0] + t.max[0]) / 2 - at.x, (t.min[2] + t.max[2]) / 2 - at.z) })).sort((a, b) => a.d - b.d);
+    tilesLeft = q.length; const total = q.length;
+    const next = () => { const it = q.shift(); if (!it) return;
+      gl.load(MV + "tiles/" + it.t.f, (g) => { addTile(g.scene); done(); }, undefined, done);
+      function done() { tilesLeft--; if (!walkReady && total - tilesLeft >= Math.min(6, total)) { walkReady = true; teleport(cur || PLACES[0]); }
+        loadEl.textContent = "LOADING THE MODEL " + Math.round(100 * (total - tilesLeft) / total) + "%";
+        if (tilesLeft <= 0) { loadEl.hidden = true; } else if (walkReady && mode === "walk") loadEl.hidden = tilesLeft < total * 0.5;
+        renderer.shadowMap.needsUpdate = true; depthDirty = true; next(); } };
+    for (let k = 0; k < 6; k++) next(); loadTrees();
+  }).catch(() => { loadEl.textContent = "THE 3D MODEL COULD NOT LOAD ON THIS DEVICE. THE 360 VIEWS STILL WORK."; });
+}
+// meshopt tiles carry quantized positions (int16 + a node scale/offset). The collision BVH needs plain world-space floats,
+// so each mesh is unpacked once: positions -> Float32 in world metres, node transform reset to identity.
+const DQ = { Int8Array: 127, Uint8Array: 255, Int16Array: 32767, Uint16Array: 65535 };
+function bakeWorld(o) {
+  const a = o.geometry.attributes.position, n = a.count, out = new Float32Array(n * 3), src = a.array, k = a.normalized ? (DQ[src.constructor.name] || 1) : 1;
+  const e = o.matrixWorld.elements, st = a.isInterleavedBufferAttribute ? a.data.stride : a.itemSize, off = a.isInterleavedBufferAttribute ? a.offset : 0;
+  const arr = a.isInterleavedBufferAttribute ? a.data.array : src;
+  for (let i = 0; i < n; i++) {
+    const j = i * st + off; let x = arr[j], y = arr[j + 1], z = arr[j + 2];
+    if (k !== 1) { x = Math.max(x / k, -1); y = Math.max(y / k, -1); z = Math.max(z / k, -1); }
+    out[i * 3] = e[0] * x + e[4] * y + e[8] * z + e[12]; out[i * 3 + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; out[i * 3 + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+  }
+  o.geometry.setAttribute("position", new THREE.BufferAttribute(out, 3));
+  o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
+  o.position.set(0, 0, 0); o.quaternion.identity(); o.scale.set(1, 1, 1); o.updateMatrix(); o.updateMatrixWorld(true);
+}
+function addTile(root) {
+  root.updateMatrixWorld(true);
+  const meshes = []; root.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  const grp = new THREE.Group();
+  for (const o of meshes) { o.userData.pn = (o.parent && o.parent.name) || ""; o.updateMatrixWorld(true); bakeWorld(o); grp.add(o); }
+  root = grp;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const c = (o.name || "").replace(/_\d+$/, "").toUpperCase(), pn = o.userData.pn.replace(/_\d+$/, "").toUpperCase(), cls = MAT[c] ? c : (MAT[pn] ? pn : null);
+    o.material = MAT[cls] || MAT.CONCRETE; o.userData.cls = cls;
+    o.castShadow = !NOSHADOW.has(cls); o.receiveShadow = !(cls === "GLASS" || cls === "LIGHT");
+    o.updateMatrixWorld(true);
+    if (!NOCOLLIDE.has(cls)) { o.geometry.computeBoundsTree(); o.geometry.computeBoundingBox(); colliders.push(o); if (!NOFLOOR.has(cls)) floors.push(o); }
+  });
+  walkScene.add(root);
+}
+
+// --- trees: the D5 scene's trees (positions + scale from the D5 save), as light instanced trunks + leaf clumps
+function blobs(list) { // merge a few squashed icospheres into one canopy geometry
+  const P = [], N = [];
+  for (const [x, y, z, r, sy] of list) { const g = new THREE.IcosahedronGeometry(r, 1); g.scale(1, sy, 1); g.translate(x, y, z);
+    P.push(...g.attributes.position.array); N.push(...g.attributes.normal.array); g.dispose(); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3));
+  const uv = new Float32Array(P.length / 3 * 2); for (let i = 0; i < P.length / 3; i++) { uv[i * 2] = P[i * 3] * 0.4; uv[i * 2 + 1] = P[i * 3 + 1] * 0.4 + P[i * 3 + 2] * 0.4; }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); g.computeVertexNormals(); return g;
+}
+const TREE = [ // [canopy blobs (x, y, z, r, squash)], trunk height, trunk radius - per D5 species: Delonix regia, Ficus carica, misc
+  { c: blobs([[0, 6.4, 0, 3.4, 0.42], [2.6, 6.0, 1.2, 2.6, 0.45], [-2.5, 6.1, -1.0, 2.7, 0.45], [0.8, 6.2, -2.6, 2.5, 0.45], [-1.2, 6.0, 2.6, 2.4, 0.45], [0, 7.2, 0, 2.2, 0.5]]), h: 6.0, r: 0.22 },
+  { c: blobs([[0, 2.9, 0, 1.5, 0.75], [0.9, 2.6, 0.5, 1.0, 0.8], [-0.8, 2.7, -0.4, 1.1, 0.8]]), h: 2.6, r: 0.09 },
+  { c: blobs([[0, 5.0, 0, 2.4, 0.7], [1.2, 4.4, 0.6, 1.6, 0.8], [-1.1, 4.6, -0.7, 1.7, 0.8]]), h: 4.2, r: 0.16 },
+];
+const leafMat = std({ map: tx("grass.jpg"), color: 0x7f9466, roughness: 1, flatShading: true });
+const barkMat = std({ color: 0x5e5246, roughness: 0.95 });
+function loadTrees() {
+  fetch(MV + "trees.json").then((r) => r.json()).then((L) => {
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    TREE.forEach((T, k) => {
+      const mine = L.filter((t) => t[0] === k); if (!mine.length) return;
+      const trunk = new THREE.CylinderGeometry(T.r * 0.7, T.r, T.h, 7); trunk.translate(0, T.h / 2, 0);
+      const ci = new THREE.InstancedMesh(T.c, leafMat, mine.length), ti = new THREE.InstancedMesh(trunk, barkMat, mine.length);
+      mine.forEach((t, i) => { const sc = t[4] * (0.85 + ((i * 7919) % 31) / 100);
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2)); s.set(sc, sc, sc); p.set(t[1], t[2], t[3]);
+        m4.compose(p, q, s); ci.setMatrixAt(i, m4); ti.setMatrixAt(i, m4); });
+      for (const im of [ci, ti]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; walkScene.add(im); }
     });
-    walkScene.add(g.scene); walkReady = true; loadEl.hidden = true; loadEl.textContent = "LOADING";
-    teleport(cur || PLACES[0]);
-  }, undefined, () => { loadEl.textContent = "THE 3D MODEL COULD NOT LOAD ON THIS DEVICE. THE 360 VIEWS STILL WORK."; });
+    renderer.shadowMap.needsUpdate = true;
+  }).catch(() => {});
 }
-function floorAt(p, from) {
-  ray.set(new THREE.Vector3(p.x, from, p.z), new THREE.Vector3(0, -1, 0)); ray.far = 40;
-  const h = ray.intersectObjects(colliders, false); return h.length ? h[0].point.y : null;
-}
-function teleport(p) { const v = toWalk(p); walkPos.set(v.x, v.y - 1.6, v.z); walkHead = p.yaw + head; walkPitch = 0; }
+
+// --- walking: capsule from knee to head against the BVH; feet follow the floor (steps up to 45 cm, ramps, stairs)
+const RAD = 0.27, EYE = 1.62, STEP = 0.45;
+function floorAt(x, z, from) { ray.set(new THREE.Vector3(x, from, z), new THREE.Vector3(0, -1, 0)); ray.far = 60;
+  const h = ray.intersectObjects(floors, false); return h.length ? h[0].point.y : null; }
+function teleport(p) { const v = toWalk(p); pos.set(v.x, v.y - EYE, v.z); const f = floorAt(pos.x, pos.z, pos.y + 1.0); if (f !== null) pos.y = f;
+  lastSafe.copy(pos); vy = 0; walkHead = p.yaw + head; walkPitch = 0; aimSun(pos); pickPanos(true); }
 const keys = {}; addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; }); addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 let joy = { x: 0, y: 0 };
+const seg = new THREE.Line3(), tp = new THREE.Vector3(), cp = new THREE.Vector3(), cbox = new THREE.Box3(), push = new THREE.Vector3();
+function collide() {   // resolve the capsule out of every nearby triangle, moving it as it goes; reject wild corrections
+  const sx = pos.x, sz = pos.z;
+  seg.start.set(pos.x, pos.y + STEP, pos.z); seg.end.set(pos.x, pos.y + EYE - 0.05, pos.z);
+  cbox.makeEmpty(); cbox.expandByPoint(seg.start); cbox.expandByPoint(seg.end); cbox.min.addScalar(-RAD - 0.1); cbox.max.addScalar(RAD + 0.1);
+  for (const m of colliders) {
+    if (!m.geometry.boundingBox.intersectsBox(cbox)) continue;
+    m.geometry.boundsTree.shapecast({
+      intersectsBounds: (b) => b.intersectsBox(cbox),
+      intersectsTriangle: (tri) => {
+        const d = tri.closestPointToSegment(seg, tp, cp);
+        if (d < RAD) { const dir = cp.sub(tp); dir.y = 0; const l = dir.length();
+          if (l > 1e-6) { dir.multiplyScalar((RAD - d) / l); seg.start.add(dir); seg.end.add(dir); } }
+      },
+    });
+  }
+  const dx = seg.start.x - sx, dz = seg.start.z - sz;
+  if (Math.hypot(dx, dz) > 0.25) return false;
+  pos.x += dx; pos.z += dz; return true;
+}
 function stepWalk(dt) {
   let f = 0, s = 0;
   if (keys["w"] || keys["arrowup"]) f += 1; if (keys["s"] || keys["arrowdown"]) f -= 1;
   if (keys["a"]) s -= 1; if (keys["d"]) s += 1;
-  if (keys["arrowleft"]) walkHead -= 90 * dt; if (keys["arrowright"]) walkHead += 90 * dt;
+  if (keys["arrowleft"] || keys["q"]) walkHead -= 80 * dt; if (keys["arrowright"] || keys["e"]) walkHead += 80 * dt;
   f += -joy.y; s += joy.x;
-  const speed = (keys["shift"] ? 6 : 2.6) * dt, hr = walkHead * D2R;
+  const speed = (keys["shift"] ? 4.2 : 1.7) * dt, hr = walkHead * D2R;
   const mv = new THREE.Vector3(Math.sin(hr), 0, -Math.cos(hr)).multiplyScalar(f).add(new THREE.Vector3(Math.cos(hr), 0, Math.sin(hr)).multiplyScalar(s));
-  if (mv.lengthSq() > 1e-6 && colliders.length) {
-    mv.normalize().multiplyScalar(speed);
-    let blocked = false;
-    for (const hgt of [0.5, 1.3]) {
-      ray.set(new THREE.Vector3(walkPos.x, walkPos.y + hgt, walkPos.z), mv.clone().normalize()); ray.far = mv.length() + 0.35;
-      if (ray.intersectObjects(colliders, false).length) { blocked = true; break; }
-    }
-    if (!blocked) {
-      const nx = walkPos.x + mv.x, nz = walkPos.z + mv.z, fl = floorAt({ x: nx, z: nz }, walkPos.y + 0.5);
-      if (fl !== null && fl <= walkPos.y + 0.5) { walkPos.x = nx; walkPos.z = nz; }
-    }
+  if (mv.lengthSq() > 1) mv.normalize();
+  // sub-step so fast moves cannot tunnel through thin glass
+  const n = Math.max(1, Math.ceil(mv.length() * speed / 0.08));
+  for (let i = 0; i < n; i++) {
+    const px = pos.x, pz = pos.z;
+    pos.x += mv.x * speed / n; pos.z += mv.z * speed / n;
+    if (colliders.length && !collide()) { pos.x = px; pos.z = pz; }
   }
-  if (colliders.length) { const fl = floorAt(walkPos, walkPos.y + 0.5); if (fl !== null) walkPos.y = fl > walkPos.y ? fl : Math.max(fl, walkPos.y - 9 * dt); }
-  camera.position.set(walkPos.x, walkPos.y + 1.6, walkPos.z);
+  if (floors.length) {
+    const fl = floorAt(pos.x, pos.z, pos.y + STEP + 0.05);
+    if (fl !== null && fl >= pos.y - (grounded ? 0.5 : 0.02)) { pos.y = fl; vy = 0; grounded = true; }
+    else { vy -= 9.8 * dt; pos.y += vy * dt; grounded = false; if (fl !== null && pos.y < fl) { pos.y = fl; vy = 0; grounded = true; } }
+    if (fl === null && !grounded) { if (pos.y < lastSafe.y - 30) { pos.copy(lastSafe); vy = 0; } }
+    if (grounded) lastSafe.copy(pos);
+  }
+  camera.position.set(pos.x, pos.y + EYE, pos.z);
+  aimSun(pos); pickPanos(false);
 }
+
+// --- photo look: the two nearest 360s are projected onto the model (depth-tested from each 360's own eye point)
+let photo = true;
+const panoTex = {}, depthRT = {};
+const distMat = new THREE.MeshDistanceMaterial({ side: THREE.DoubleSide });
+function getPano(id) { if (!panoTex[id]) { const t = tl.load("pano4k/" + id + ".jpg", () => { t.ready = true; }); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.wrapS = THREE.RepeatWrapping; panoTex[id] = t; } return panoTex[id]; }
+function getDepth(p, force) {
+  let rt = depthRT[p.id];
+  if (!rt) { rt = depthRT[p.id] = new THREE.WebGLCubeRenderTarget(isTouch ? 512 : 1024, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false }); force = true; }
+  if (force) {
+    const c = toWalk(p), cam = new THREE.CubeCamera(0.05, 400.05, rt); cam.position.copy(c);
+    distMat.referencePosition.copy(c); distMat.nearDistance = 0.05; distMat.farDistance = 400.05;
+    const hide = []; walkScene.traverse((o) => { if (o.isMesh && (o === sky || o.material.transparent || o.userData.cls === "LIGHT")) { if (o.visible) { hide.push(o); o.visible = false; } } });
+    const sm = renderer.shadowMap.enabled; renderer.shadowMap.enabled = false; const tm = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
+    walkScene.overrideMaterial = distMat; cam.update(renderer, walkScene); walkScene.overrideMaterial = null;
+    renderer.shadowMap.enabled = sm; renderer.toneMapping = tm; hide.forEach((o) => { o.visible = true; });
+    rt.stamp = performance.now();
+  }
+  return rt.texture;
+}
+let slotA = null, slotB = null, lastPick = 0;
+function pickPanos(force) {
+  const now = performance.now(); if (!force && now - lastPick < 150) return; lastPick = now;
+  if (!photo || !PLACES.length) { PU.uWA.value = PU.uWB.value = 0; return; }
+  const eye = new THREE.Vector3(pos.x, pos.y + EYE, pos.z);
+  const near = PLACES.map((p) => ({ p, d: toWalk(p).distanceTo(eye) })).sort((a, b) => a.d - b.d).slice(0, 2);
+  const w = (d) => Math.max(0, Math.min(1, (9 - d) / 7));   // full photo within 2 m of a 360 point, gone by 9 m
+  const set = (k, it) => {
+    const C = k === "A" ? PU.uCA : PU.uCB, Wt = k === "A" ? PU.uWA : PU.uWB;
+    if (!it || w(it.d) <= 0) { Wt.value = 0; return null; }
+    const t = getPano(it.p.id); if (!t.ready) { Wt.value = 0; return it.p.id; }
+    (k === "A" ? PU.uPA : PU.uPB).value = t; (k === "A" ? PU.uDA : PU.uDB).value = getDepth(it.p, depthDirty && force);
+    C.value.copy(toWalk(it.p)); (k === "A" ? PU.uYA : PU.uYB).value = it.p.yaw * D2R; Wt.value = w(it.d); return it.p.id;
+  };
+  slotA = set("A", near[0]); slotB = set("B", near[1]);
+}
+setInterval(() => { // refresh the depth maps of the 360s in use while tiles are still arriving
+  if (mode !== "walk" || !depthDirty) return; depthDirty = tilesLeft > 0;
+  for (const id of [slotA, slotB]) if (id && depthRT[id]) getDepth(byId[id], true);
+  for (const id in depthRT) if (id !== slotA && id !== slotB) { depthRT[id].dispose(); delete depthRT[id]; }
+}, 2500);
+// image-based light for reflections: the plaza 360
+const pmrem = new THREE.PMREMGenerator(renderer);
+tl.load("pano4k/" + (byId["F03_PLAZA"] ? "F03_PLAZA" : (PLACES[0] || {}).id) + ".jpg", (t) => { t.encoding = THREE.sRGBEncoding; walkScene.environment = pmrem.fromEquirectangular(t).texture; t.dispose(); });
 
 // ---------------------------------------------------------------- input: drag to look, wheel / pinch to zoom, joystick in walk
 let drag = null; const pts = new Map(); let pinch = null;
@@ -324,7 +552,8 @@ function setMode(m) {
   joyEl.hidden = !(m === "walk" && isTouch);
   hintEl.style.opacity = 1; setTimeout(() => { hintEl.style.opacity = 0; }, 6000);
   hintEl.textContent = m === "tour" ? "Drag to look around. Tap an arrow or a view below to move."
-    : (isTouch ? "Simplified model. Joystick to walk, drag to look." : "Simplified model. W A S D to walk, drag to look, Shift to run.");
+    : (isTouch ? "Joystick to walk, drag to look. Near a view point the D5 photo is laid on the model." : "W A S D to walk, drag to look, Shift to run. Near a view point the D5 photo is laid on the model.");
+  document.getElementById("b-photo").hidden = m !== "walk";
   camera.fov = fov = m === "tour" ? 72 : 70; camera.near = m === "tour" ? 1 : 0.05; camera.updateProjectionMatrix();
   if (m === "walk") { loadWalk(); if (walkReady && cur) teleport(cur); }
   else { loadEl.hidden = true; if (cur) showPlace(cur.id); }
@@ -332,6 +561,7 @@ function setMode(m) {
 }
 document.getElementById("m-tour").addEventListener("click", () => setMode("tour"));
 document.getElementById("m-walk").addEventListener("click", () => setMode("walk"));
+document.getElementById("b-photo").addEventListener("click", (e) => { photo = !photo; e.currentTarget.setAttribute("aria-pressed", String(photo)); pickPanos(true); });
 const rail = document.getElementById("rail");
 PLACES.forEach((p) => {
   const b = document.createElement("button"); b.dataset.id = p.id; b.setAttribute("aria-label", p.name);
@@ -367,6 +597,7 @@ const qY = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
     renderer.render(tourScene, camera); placeHots();
   } else {
     if (walkReady) stepWalk(dt);
+    sky.position.copy(camera.position);
     const hr = walkHead * D2R, pr = walkPitch * D2R;
     camera.lookAt(camera.position.x + Math.sin(hr) * Math.cos(pr), camera.position.y + Math.sin(pr), camera.position.z - Math.cos(hr) * Math.cos(pr));
     renderer.render(walkScene, camera);
