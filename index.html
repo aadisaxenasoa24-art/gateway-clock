@@ -491,7 +491,12 @@ function stepWalk(dt) {
 let photo = true;
 const panoTex = {}, depthRT = {};
 const distMat = new THREE.MeshDistanceMaterial({ side: THREE.DoubleSide });
-function getPano(id) { if (!panoTex[id]) { const t = tl.load("pano4k/" + id + ".jpg", () => { t.ready = true; }); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.wrapS = THREE.RepeatWrapping; panoTex[id] = t; } return panoTex[id]; }
+function panoT(url, done) { const t = tl.load(url, () => { t.ready = true; done && done(t); }); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.wrapS = THREE.RepeatWrapping; return t; }
+function getPano(id) { // 4K first (quick), then the 8K on desktops, swapped in when it arrives
+  if (!panoTex[id]) panoTex[id] = panoT("pano4k/" + id + ".jpg", () => {
+    if (useHi && !id.startsWith("W")) panoT("pano/" + id + ".jpg", (t8) => { const old = panoTex[id]; panoTex[id] = t8; pickPanos(true); setTimeout(() => old.dispose(), 500); }); });
+  return panoTex[id];
+}
 function getDepth(p, force) {
   let rt = depthRT[p.id];
   if (!rt) { rt = depthRT[p.id] = new THREE.WebGLCubeRenderTarget(isTouch ? 512 : 1024, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false }); force = true; }
@@ -511,7 +516,7 @@ function pickPanos(force) {
   const now = performance.now(); if (!force && now - lastPick < 150) return; lastPick = now;
   if (!photo || !PLACES.length) { PU.uWA.value = PU.uWB.value = 0; treeMeshes.forEach((m) => { m.visible = true; }); renderer.shadowMap.needsUpdate = true; return; }
   const eye = new THREE.Vector3(pos.x, pos.y + EYE, pos.z);
-  const near = PLACES.map((p) => ({ p, d: toWalk(p).distanceTo(eye) })).sort((a, b) => a.d - b.d).slice(0, 2);
+  const near = PLACES.map((p) => { const c = toWalk(p); return { p, d: Math.hypot(c.x - eye.x, (c.y - eye.y) * 4, c.z - eye.z) }; }).sort((a, b) => a.d - b.d).slice(0, 2);   // other floors count 4x
   const w = (d) => Math.max(0, Math.min(1, (9 - d) / 7));   // full photo within 2 m of a 360 point, gone by 9 m
   const set = (k, it) => {
     const C = k === "A" ? PU.uCA : PU.uCB, Wt = k === "A" ? PU.uWA : PU.uWB;
@@ -526,9 +531,10 @@ function pickPanos(force) {
   if (treeMeshes.length && treeMeshes[0].visible !== showTrees) { treeMeshes.forEach((m) => { m.visible = showTrees; }); renderer.shadowMap.needsUpdate = true; }
 }
 setInterval(() => { // refresh the depth maps of the 360s in use while tiles are still arriving
-  if (mode !== "walk" || !depthDirty) return; depthDirty = tilesLeft > 0;
-  for (const id of [slotA, slotB]) if (id && depthRT[id]) getDepth(byId[id], true);
+  if (mode !== "walk") return; const dd = depthDirty; depthDirty = tilesLeft > 0;
+  if (dd) for (const id of [slotA, slotB]) if (id && depthRT[id]) getDepth(byId[id], true);
   for (const id in depthRT) if (id !== slotA && id !== slotB) { depthRT[id].dispose(); delete depthRT[id]; }
+  const ids = Object.keys(panoTex); if (ids.length > 4) for (const id of ids) if (id !== slotA && id !== slotB) { panoTex[id].dispose(); delete panoTex[id]; }
 }, 2500);
 // image-based light for reflections: the plaza 360
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -588,6 +594,7 @@ function setMode(m) {
   hintEl.textContent = m === "tour" ? "Drag to look around. Tap an arrow or a view below to move."
     : (isTouch ? "Tap the ground to walk there, or use the joystick. Drag to look." : "Click the ground to walk there, or W A S D (Shift to run). Drag to look.");
   document.getElementById("b-photo").hidden = m !== "walk";
+  vrBtn.hidden = !(isTouch && m === "tour"); gyroBtn.hidden = !(isTouch && m === "tour" && "DeviceOrientationEvent" in window);
   camera.fov = fov = m === "tour" ? 72 : 70; camera.near = m === "tour" ? 1 : 0.05; camera.updateProjectionMatrix();
   if (m === "walk") { loadWalk(); if (walkReady && cur) teleport(cur); }
   else { loadEl.hidden = true; if (cur) showPlace(cur.id); }
