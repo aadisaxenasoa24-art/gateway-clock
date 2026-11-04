@@ -348,7 +348,7 @@ function loadWalk() {
       function done() { tilesLeft--; if (!walkReady && total - tilesLeft >= Math.min(6, total)) { walkReady = true; teleport(cur || PLACES[0]); }
         loadEl.textContent = "LOADING THE MODEL " + Math.round(100 * (total - tilesLeft) / total) + "%";
         if (tilesLeft <= 0) { loadEl.hidden = true; } else if (walkReady && mode === "walk") loadEl.hidden = tilesLeft < total * 0.5;
-        renderer.shadowMap.needsUpdate = true; depthDirty = true; next(); } };
+        renderer.shadowMap.needsUpdate = true; depthDirty = true; settle(); next(); } };
     for (let k = 0; k < 6; k++) next(); loadTrees();
   }).catch(() => { loadEl.textContent = "THE 3D MODEL COULD NOT LOAD ON THIS DEVICE. THE 360 VIEWS STILL WORK."; });
 }
@@ -426,8 +426,10 @@ function loadTrees() {
 const RAD = 0.27, EYE = 1.62, STEP = 0.45;
 function floorAt(x, z, from) { ray.set(new THREE.Vector3(x, from, z), new THREE.Vector3(0, -1, 0)); ray.far = 60;
   const h = ray.intersectObjects(floors, false); return h.length ? h[0].point.y : null; }
-function teleport(p) { const v = toWalk(p); pos.set(v.x, v.y - EYE, v.z); const f = floorAt(pos.x, pos.z, pos.y + 1.0); if (f !== null) pos.y = f;
-  lastSafe.copy(pos); vy = 0; walkHead = p.yaw + head; walkPitch = 0; aimSun(pos); pickPanos(true); }
+let tpEye = null, moved = false;
+function settle() { if (tpEye === null || moved) return; const f = floorAt(pos.x, pos.z, tpEye + 0.3); if (f !== null) { pos.y = f; lastSafe.copy(pos); } }
+function teleport(p) { const v = toWalk(p); pos.set(v.x, v.y - EYE, v.z); tpEye = v.y; moved = false; settle();
+  lastSafe.copy(pos); vy = 0; walkHead = p.yaw + head; walkPitch = 0; aimSun(pos); pickPanos(true); walkTo = null; marker.visible = false; }
 const keys = {}; addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; }); addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 let joy = { x: 0, y: 0 };
 const seg = new THREE.Line3(), tp = new THREE.Vector3(), cp = new THREE.Vector3(), cbox = new THREE.Box3(), push = new THREE.Vector3();
@@ -456,9 +458,17 @@ function stepWalk(dt) {
   if (keys["a"]) s -= 1; if (keys["d"]) s += 1;
   if (keys["arrowleft"] || keys["q"]) walkHead -= 80 * dt; if (keys["arrowright"] || keys["e"]) walkHead += 80 * dt;
   f += -joy.y; s += joy.x;
-  const speed = (keys["shift"] ? 4.2 : 1.7) * dt, hr = walkHead * D2R;
+  let speed = (keys["shift"] ? 4.2 : 1.7) * dt; const hr = walkHead * D2R;
   const mv = new THREE.Vector3(Math.sin(hr), 0, -Math.cos(hr)).multiplyScalar(f).add(new THREE.Vector3(Math.cos(hr), 0, Math.sin(hr)).multiplyScalar(s));
   if (mv.lengthSq() > 1) mv.normalize();
+  if (mv.lengthSq() > 0.01) { walkTo = null; moved = true; }                      // any key / joystick cancels a tap-to-walk
+  else if (walkTo) {                                             // glide toward the tapped spot, stopping if blocked
+    const dx = walkTo.x - pos.x, dz = walkTo.z - pos.z, d = Math.hypot(dx, dz);
+    if (d < 0.3 || performance.now() - walkTo.t > 20000) { walkTo = null; marker.visible = false; }
+    else { mv.set(dx / d, 0, dz / d); speed = Math.min(2.6 * dt, d); moved = true;
+      if (walkTo.last && walkTo.last.distanceTo(pos) < 0.002 && ++walkTo.stuck > 12) { walkTo = null; marker.visible = false; }
+      walkTo.last = pos.clone(); }
+  }
   // sub-step so fast moves cannot tunnel through thin glass
   const n = Math.max(1, Math.ceil(mv.length() * speed / 0.08));
   for (let i = 0; i < n; i++) {
@@ -529,8 +539,22 @@ let drag = null; const pts = new Map(); let pinch = null;
 stage.addEventListener("pointerdown", (e) => {
   pts.set(e.pointerId, e); stage.setPointerCapture(e.pointerId);
   if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), f: fov }; drag = null; return; }
-  drag = { x: e.clientX, y: e.clientY, h: mode === "tour" ? head : walkHead, p: mode === "tour" ? pitch : walkPitch, o: yawOff };
+  drag = { x: e.clientX, y: e.clientY, h: mode === "tour" ? head : walkHead, p: mode === "tour" ? pitch : walkPitch, o: yawOff, t: performance.now() };
 });
+// tap (or click) a spot on the ground in the 3D walk -> glide there
+let walkTo = null;
+const marker = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.32, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false, toneMapped: false }));
+marker.rotation.x = -Math.PI / 2; marker.visible = false; marker.renderOrder = 10; walkScene.add(marker);
+function tapWalk(e) {
+  if (mode !== "walk" || !walkReady) return;
+  const r = renderer.domElement.getBoundingClientRect(), rc = new THREE.Raycaster();
+  rc.setFromCamera({ x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }, camera); rc.firstHitOnly = true; rc.far = 60;
+  const hit = rc.intersectObjects(colliders.concat(floors.filter((m) => !colliders.includes(m))), false).sort((a, b) => a.distance - b.distance)[0];
+  if (!hit || !hit.face) return;
+  const n = hit.face.normal.clone(); if (Math.abs(n.y) < 0.7) return;           // only walkable (flat-ish) surfaces
+  walkTo = { x: hit.point.x, z: hit.point.z, t: performance.now(), stuck: 0, last: null };
+  marker.position.set(hit.point.x, hit.point.y + 0.03, hit.point.z); marker.visible = true;
+}
 stage.addEventListener("pointermove", (e) => {
   if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
   if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); setFov(pinch.f * pinch.d / Math.max(d, 1)); return; }
@@ -539,7 +563,9 @@ stage.addEventListener("pointermove", (e) => {
   if (mode === "tour") { if (gyro) yawOff = drag.o + dx; else { head = drag.h - dx; pitch = Math.max(-80, Math.min(80, drag.p + dy)); } }
   else { walkHead = drag.h - dx; walkPitch = Math.max(-80, Math.min(80, drag.p + dy)); }
 });
-const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) drag = null; };
+const up = (e) => {
+  if (drag && e.type === "pointerup" && pts.size === 1 && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8 && performance.now() - drag.t < 350) tapWalk(e);
+  pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) drag = null; };
 stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
 function setFov(f) { fov = Math.max(35, Math.min(100, f)); camera.fov = fov; camera.updateProjectionMatrix(); }
 stage.addEventListener("wheel", (e) => { e.preventDefault(); setFov(fov + e.deltaY * 0.03); }, { passive: false });
@@ -560,7 +586,7 @@ function setMode(m) {
   joyEl.hidden = !(m === "walk" && isTouch);
   hintEl.style.opacity = 1; setTimeout(() => { hintEl.style.opacity = 0; }, 6000);
   hintEl.textContent = m === "tour" ? "Drag to look around. Tap an arrow or a view below to move."
-    : (isTouch ? "Joystick to walk, drag to look. Near a view point the D5 photo is laid on the model." : "W A S D to walk, drag to look, Shift to run. Near a view point the D5 photo is laid on the model.");
+    : (isTouch ? "Tap the ground to walk there, or use the joystick. Drag to look." : "Click the ground to walk there, or W A S D (Shift to run). Drag to look.");
   document.getElementById("b-photo").hidden = m !== "walk";
   camera.fov = fov = m === "tour" ? 72 : 70; camera.near = m === "tour" ? 1 : 0.05; camera.updateProjectionMatrix();
   if (m === "walk") { loadWalk(); if (walkReady && cur) teleport(cur); }
