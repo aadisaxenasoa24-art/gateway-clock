@@ -75,7 +75,7 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 <div id="joy" hidden><b></b></div>
 <nav class="rail" id="rail" aria-label="Views"></nav>
 <div id="vr"><button id="vr-x">Exit VR</button></div>
-<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS",  "W02_PORCH_FORUM",  "W03_FORUM_COURT",  "W04_PORCH_COURT"];</script>
+<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS",  "W02_PORCH_FORUM",  "W03_FORUM_COURT",  "W04_PORCH_COURT",  "W05_COURT_MAKER"];</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
 <script src="lib/DRACOLoader.js"></script>
@@ -348,7 +348,7 @@ function loadWalk() {
       function done() { tilesLeft--; if (!walkReady && total - tilesLeft >= Math.min(6, total)) { walkReady = true; teleport(cur || PLACES[0]); }
         loadEl.textContent = "LOADING THE MODEL " + Math.round(100 * (total - tilesLeft) / total) + "%";
         if (tilesLeft <= 0) { loadEl.hidden = true; } else if (walkReady && mode === "walk") loadEl.hidden = tilesLeft < total * 0.5;
-        renderer.shadowMap.needsUpdate = true; depthDirty = true; settle(); next(); } };
+        renderer.shadowMap.needsUpdate = true; depthDirty = true; settle(); if (tilesLeft <= 0) placeSpots(); next(); } };
     for (let k = 0; k < 6; k++) next(); loadTrees();
   }).catch(() => { loadEl.textContent = "THE 3D MODEL COULD NOT LOAD ON THIS DEVICE. THE 360 VIEWS STILL WORK."; });
 }
@@ -406,6 +406,17 @@ const TREE = [ // [canopy blobs (x, y, z, r, squash)], trunk height, trunk radiu
 const leafMat = std({ map: tx("grass.jpg"), color: 0x7f9466, roughness: 1, flatShading: true }, false);
 const treeMeshes = [];
 const barkMat = std({ color: 0x5e5246, roughness: 0.95 }, false);
+// view-point markers on the ground: where the D5 photo is sharpest (placed once the floor under each is loaded)
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xb31b17, transparent: true, opacity: 0.65, depthWrite: false, toneMapped: false });
+const spots = [];
+function placeSpots() {
+  for (const p of PLACES) {
+    const v = toWalk(p), f = floorAt(v.x, v.z, v.y + 0.3); if (f === null) continue;
+    let m = spots.find((q) => q.userData.id === p.id);
+    if (!m) { m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.47, 48), spotMat); m.rotation.x = -Math.PI / 2; m.userData.id = p.id; m.renderOrder = 9; spots.push(m); walkScene.add(m); }
+    m.position.set(v.x, f + 0.02, v.z);
+  }
+}
 function loadTrees() {
   fetch(MV + "trees.json").then((r) => r.json()).then((L) => {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
