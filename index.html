@@ -268,8 +268,8 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), new THREE.Sha
       if (d.y < 0.0) c = mix(vec3(0.86, 0.84, 0.80), vec3(0.62, 0.58, 0.52), clamp(-d.y * 5.0, 0.0, 1.0));
       gl_FragColor = vec4(c, 1.0); }` }));
 sky.renderOrder = -1; sky.frustumCulled = false; walkScene.add(sky);
-const hemi = new THREE.HemisphereLight(0xd6e4f2, 0x9c8768, 0.85); walkScene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffd6a0, 2.7); sun.castShadow = true;
+const hemi = new THREE.HemisphereLight(0xd6e4f2, 0x8c7458, 0.62); walkScene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffd29a, 3.3); sun.castShadow = true;
 sun.shadow.mapSize.set(isTouch ? 2048 : 4096, isTouch ? 2048 : 4096);
 const SH = isTouch ? 34 : 48; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 500 });
 sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03;
@@ -314,8 +314,8 @@ const MAT = {
   MACHINE: std({ color: 0x46484c, metalness: 0.5, roughness: 0.45 }),
   GLASS: std({ color: 0xbcd2de, metalness: 0.0, roughness: 0.04, transparent: true, opacity: 0.18, depthWrite: false, envMapIntensity: 1.6 }, false),
   GLASSCTX: std({ color: 0x6f8494, metalness: 0.3, roughness: 0.1, transparent: true, opacity: 0.75, envMapIntensity: 1.2 }, false),
-  CHIMNEY: std({ map: tx("plaster.jpg"), roughness: 0.8 }), CONCRETE: std({ map: tx("concrete.jpg"), roughness: 0.85 }),
-  FLOOR: std({ map: tx("woodfloor.jpg"), roughness: 0.55 }), ROOF: std({ map: tx("roof.jpg"), roughness: 0.9 }),
+  CHIMNEY: std({ map: tx("plaster.jpg"), roughness: 0.8 }), CONCRETE: std({ map: tx("boardconcrete.jpg"), roughness: 0.85 }),
+  FLOOR: std({ map: tx("polishedconcrete.jpg"), roughness: 0.32, envMapIntensity: 0.9 }), ROOF: std({ map: tx("roof.jpg"), roughness: 0.9 }),
   WALL: std({ map: tx("woodwall.jpg"), roughness: 0.7 }), TIMBER: std({ map: tx("timber.jpg"), roughness: 0.55 }),
   FURN: std({ map: tx("plywood.jpg"), roughness: 0.6 }), BOOKS: std({ map: tx("books.jpg"), roughness: 0.8 }),
   MODEL: std({ color: 0xece8e0, roughness: 0.8 }),
@@ -385,6 +385,10 @@ function addTile(root) {
   walkScene.add(root);
 }
 
+// --- fallback ground under everything (the roads were not in the export): asphalt plane just below the lowest site level
+{ const g = new THREE.PlaneGeometry(2400, 2400, 1, 1); g.rotateX(-Math.PI / 2); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 600, uv.getY(i) * 600);
+  const base = new THREE.Mesh(g, MAT.ROAD); base.position.y = -0.9; base.receiveShadow = true; base.userData.cls = "ROAD"; base.updateMatrixWorld(true);
+  base.geometry.computeBoundingBox(); base.geometry.computeBoundsTree(); walkScene.add(base); floors.push(base); }
 // --- trees: the D5 scene's trees (positions + scale from the D5 save), as light instanced trunks + leaf clumps
 function blobs(list) { // merge a few squashed icospheres into one canopy geometry
   const P = [], N = [];
@@ -399,8 +403,9 @@ const TREE = [ // [canopy blobs (x, y, z, r, squash)], trunk height, trunk radiu
   { c: blobs([[0, 2.9, 0, 1.5, 0.75], [0.9, 2.6, 0.5, 1.0, 0.8], [-0.8, 2.7, -0.4, 1.1, 0.8]]), h: 2.6, r: 0.09 },
   { c: blobs([[0, 5.0, 0, 2.4, 0.7], [1.2, 4.4, 0.6, 1.6, 0.8], [-1.1, 4.6, -0.7, 1.7, 0.8]]), h: 4.2, r: 0.16 },
 ];
-const leafMat = std({ map: tx("grass.jpg"), color: 0x7f9466, roughness: 1, flatShading: true });
-const barkMat = std({ color: 0x5e5246, roughness: 0.95 });
+const leafMat = std({ map: tx("grass.jpg"), color: 0x7f9466, roughness: 1, flatShading: true }, false);
+const treeMeshes = [];
+const barkMat = std({ color: 0x5e5246, roughness: 0.95 }, false);
 function loadTrees() {
   fetch(MV + "trees.json").then((r) => r.json()).then((L) => {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
@@ -411,7 +416,7 @@ function loadTrees() {
       mine.forEach((t, i) => { const sc = t[4] * (0.85 + ((i * 7919) % 31) / 100);
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2)); s.set(sc, sc, sc); p.set(t[1], t[2], t[3]);
         m4.compose(p, q, s); ci.setMatrixAt(i, m4); ti.setMatrixAt(i, m4); });
-      for (const im of [ci, ti]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; walkScene.add(im); }
+      for (const im of [ci, ti]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; walkScene.add(im); treeMeshes.push(im); }
     });
     renderer.shadowMap.needsUpdate = true;
   }).catch(() => {});
@@ -464,7 +469,7 @@ function stepWalk(dt) {
   if (floors.length) {
     const fl = floorAt(pos.x, pos.z, pos.y + STEP + 0.05);
     if (fl !== null && fl >= pos.y - (grounded ? 0.5 : 0.02)) { pos.y = fl; vy = 0; grounded = true; }
-    else { vy -= 9.8 * dt; pos.y += vy * dt; grounded = false; if (fl !== null && pos.y < fl) { pos.y = fl; vy = 0; grounded = true; } }
+    else if (fl !== null) { vy -= 9.8 * dt; pos.y += vy * dt; grounded = false; if (pos.y < fl) { pos.y = fl; vy = 0; grounded = true; } }
     if (fl === null && !grounded) { if (pos.y < lastSafe.y - 30) { pos.copy(lastSafe); vy = 0; } }
     if (grounded) lastSafe.copy(pos);
   }
@@ -483,7 +488,7 @@ function getDepth(p, force) {
   if (force) {
     const c = toWalk(p), cam = new THREE.CubeCamera(0.05, 400.05, rt); cam.position.copy(c);
     distMat.referencePosition.copy(c); distMat.nearDistance = 0.05; distMat.farDistance = 400.05;
-    const hide = []; walkScene.traverse((o) => { if (o.isMesh && (o === sky || o.material.transparent || o.userData.cls === "LIGHT")) { if (o.visible) { hide.push(o); o.visible = false; } } });
+    const hide = []; walkScene.traverse((o) => { if (o.isMesh && (o === sky || o.isInstancedMesh || o.material.transparent || o.userData.cls === "LIGHT")) { if (o.visible) { hide.push(o); o.visible = false; } } });
     const sm = renderer.shadowMap.enabled; renderer.shadowMap.enabled = false; const tm = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
     walkScene.overrideMaterial = distMat; cam.update(renderer, walkScene); walkScene.overrideMaterial = null;
     renderer.shadowMap.enabled = sm; renderer.toneMapping = tm; hide.forEach((o) => { o.visible = true; });
@@ -494,7 +499,7 @@ function getDepth(p, force) {
 let slotA = null, slotB = null, lastPick = 0;
 function pickPanos(force) {
   const now = performance.now(); if (!force && now - lastPick < 150) return; lastPick = now;
-  if (!photo || !PLACES.length) { PU.uWA.value = PU.uWB.value = 0; return; }
+  if (!photo || !PLACES.length) { PU.uWA.value = PU.uWB.value = 0; treeMeshes.forEach((m) => { m.visible = true; }); renderer.shadowMap.needsUpdate = true; return; }
   const eye = new THREE.Vector3(pos.x, pos.y + EYE, pos.z);
   const near = PLACES.map((p) => ({ p, d: toWalk(p).distanceTo(eye) })).sort((a, b) => a.d - b.d).slice(0, 2);
   const w = (d) => Math.max(0, Math.min(1, (9 - d) / 7));   // full photo within 2 m of a 360 point, gone by 9 m
@@ -506,6 +511,9 @@ function pickPanos(force) {
     C.value.copy(toWalk(it.p)); (k === "A" ? PU.uYA : PU.uYB).value = it.p.yaw * D2R; Wt.value = w(it.d); return it.p.id;
   };
   slotA = set("A", near[0]); slotB = set("B", near[1]);
+  // near a 360 point the photo already shows D5's real trees, so the simple 3D trees step aside
+  const showTrees = Math.max(PU.uWA.value, PU.uWB.value) < 0.45;
+  if (treeMeshes.length && treeMeshes[0].visible !== showTrees) { treeMeshes.forEach((m) => { m.visible = showTrees; }); renderer.shadowMap.needsUpdate = true; }
 }
 setInterval(() => { // refresh the depth maps of the 360s in use while tiles are still arriving
   if (mode !== "walk" || !depthDirty) return; depthDirty = tilesLeft > 0;
@@ -598,6 +606,14 @@ const qY = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
   } else {
     if (walkReady) stepWalk(dt);
     sky.position.copy(camera.position);
+    // keep it smooth on slower phones: if the walk runs under ~28 fps once loaded, drop resolution, then soft shadows
+    if (walkReady && tilesLeft <= 0 && !document.hidden) {
+      const q = loop.q || (loop.q = { n: 0, t: 0, lvl: 0 });
+      q.n++; q.t += dt;
+      if (q.t > 3) { const fps = q.n / q.t; q.n = 0; q.t = 0;
+        if (fps < 28 && q.lvl === 0) { q.lvl = 1; renderer.setPixelRatio(1); size(); }
+        else if (fps < 24 && q.lvl === 1) { q.lvl = 2; sun.shadow.mapSize.set(1024, 1024); sun.shadow.map && sun.shadow.map.dispose(); sun.shadow.map = null; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.needsUpdate = true; } }
+    }
     const hr = walkHead * D2R, pr = walkPitch * D2R;
     camera.lookAt(camera.position.x + Math.sin(hr) * Math.cos(pr), camera.position.y + Math.sin(pr), camera.position.z - Math.cos(hr) * Math.cos(pr));
     renderer.render(walkScene, camera);
