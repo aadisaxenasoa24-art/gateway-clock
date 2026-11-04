@@ -537,6 +537,12 @@ function pickPanos(force) {
     C.value.copy(toWalk(it.p)); (k === "A" ? PU.uYA : PU.uYB).value = it.p.yaw * D2R; Wt.value = w(it.d); return it.p.id;
   };
   slotA = set("A", near[0]); slotB = set("B", near[1]);
+  // the title chip follows you to the nearest view point
+  if (slotA && PU.uWA.value > 0.6 && (!cur || cur.id !== slotA) && byId[slotA]) {
+    cur = byId[slotA]; document.getElementById("place").textContent = cur.name;
+    document.querySelectorAll(".rail button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === cur.id)));
+    history.replaceState(null, "", "#" + cur.id);
+  }
   // near a 360 point the photo already shows D5's real trees, so the simple 3D trees step aside
   const showTrees = Math.max(PU.uWA.value, PU.uWB.value) < 0.45;
   if (treeMeshes.length && treeMeshes[0].visible !== showTrees) { treeMeshes.forEach((m) => { m.visible = showTrees; }); renderer.shadowMap.needsUpdate = true; }
