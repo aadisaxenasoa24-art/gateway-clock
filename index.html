@@ -75,7 +75,7 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 <div id="joy" hidden><b></b></div>
 <nav class="rail" id="rail" aria-label="Views"></nav>
 <div id="vr"><button id="vr-x">Exit VR</button></div>
-<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS",  "W02_PORCH_FORUM",  "W03_FORUM_COURT",  "W04_PORCH_COURT",  "W05_COURT_MAKER",  "W06_COURT_CAMPUS",  "W08_FF_BRIDGE_LINK",  "W09_SF_STUDIO_WEST",  "W10_ROAD_PLAZA",  "W11_CAMPUS_PITCH",  "W12_FORUM_EAST"];</script>
+<script>window.__PANOS__ = ["F03_PLAZA",  "F14_PITCH",  "T01_ROAD",  "T03_PORCH",  "T04_FORUM",  "T05_FF_CHIMNEY",  "T06_LIBRARY",  "T07_STUDIO",  "T08_WALKWAY",  "T09_COURT",  "T10_BRIDGE",  "T11_MAKER",  "T12_CAMPUS",  "W02_PORCH_FORUM",  "W03_FORUM_COURT",  "W04_PORCH_COURT",  "W05_COURT_MAKER",  "W06_COURT_CAMPUS",  "W08_FF_BRIDGE_LINK",  "W09_SF_STUDIO_WEST",  "W10_ROAD_PLAZA",  "W11_CAMPUS_PITCH",  "W12_FORUM_EAST",  "W13_MAKER_WEST"];</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
 <script src="lib/DRACOLoader.js"></script>
@@ -89,7 +89,7 @@ const P = [
   { id: "T01_ROAD", name: "The road", time: "16:40", x: 36000, y: 10000, z: 14264, yaw: 0, links: ["W10_ROAD_PLAZA"] },
   { id: "F03_PLAZA", name: "The plaza", time: "16:30", x: 8500, y: -10500, z: 13815, yaw: -170.8, links: ["W10_ROAD_PLAZA", "W01_PLAZA_PORCH"] },
   { id: "T03_PORCH", name: "Entry porch", time: "16:40", x: 9000, y: -28500, z: 14135, yaw: 0, links: ["W01_PLAZA_PORCH", "T04_FORUM", "W04_PORCH_COURT"] },
-  { id: "T04_FORUM", name: "Forum", time: "16:40", x: -12000, y: -37500, z: 14000, yaw: 0, links: ["T03_PORCH", "T05_FF_CHIMNEY", "W03_FORUM_COURT", "W12_FORUM_EAST"] },
+  { id: "T04_FORUM", name: "Forum", time: "16:40", x: -12000, y: -37500, z: 14000, yaw: 0, links: ["T03_PORCH", "T05_FF_CHIMNEY", "W03_FORUM_COURT"] },
   { id: "T05_FF_CHIMNEY", name: "By the thermal chimney", time: "16:40", x: 10000, y: -34000, z: 18600, yaw: 0, links: ["T04_FORUM", "T06_LIBRARY", "W08_FF_BRIDGE_LINK"] },
   { id: "T06_LIBRARY", name: "Library", time: "16:40", x: 33220, y: -37900, z: 18600, yaw: 0, links: ["T05_FF_CHIMNEY", "T07_STUDIO", "T08_WALKWAY", "W14_LIBRARY_EAST"] },
   { id: "T07_STUDIO", name: "Studio, second floor", time: "16:40", x: 36000, y: -31000, z: 23000, yaw: 0, links: ["T06_LIBRARY", "W09_SF_STUDIO_WEST"] },
@@ -103,7 +103,6 @@ const P = [
   { id: "W01_PLAZA_PORCH", name: "Plaza to porch", time: "16:40", x: 8750, y: -19500, z: 13803, yaw: 0, links: ["F03_PLAZA", "T03_PORCH"] },
   { id: "W04_PORCH_COURT", name: "Porch to court", time: "16:40", x: 7500, y: -40250, z: 14200, yaw: 0, links: ["T03_PORCH", "T09_COURT"] },
   { id: "W03_FORUM_COURT", name: "Forum to court", time: "16:40", x: -3000, y: -44750, z: 14200, yaw: 0, links: ["T04_FORUM", "T09_COURT"] },
-  { id: "W12_FORUM_EAST", name: "Beside the forum", time: "16:40", x: -12000, y: -46000, z: 14018, yaw: 0, links: ["T04_FORUM"] },
   { id: "W05_COURT_MAKER", name: "Court to maker hall", time: "16:40", x: -5000, y: -59250, z: 14200, yaw: 0, links: ["T09_COURT", "T11_MAKER"] },
   { id: "W13_MAKER_WEST", name: "Maker hall, west", time: "16:40", x: -26000, y: -66500, z: 14200, yaw: 0, links: ["T11_MAKER"] },
   { id: "W06_COURT_CAMPUS", name: "Court to campus", time: "16:40", x: 6000, y: -66000, z: 14200, yaw: 0, links: ["T09_COURT", "T12_CAMPUS"] },
